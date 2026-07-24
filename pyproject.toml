@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mixkin"
+version = "0.1.0"
+description = "Admixture-aware kinship estimation using PMR"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  { name = "MixKin" }
+]
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "pandas-plink>=2.3"
+]
+
+[project.scripts]
+mixkin = "mixkin.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

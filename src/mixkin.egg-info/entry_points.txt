@@ -1,0 +1,2 @@
+[console_scripts]
+mixkin = mixkin.cli:main
