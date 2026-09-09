@@ -18,8 +18,18 @@ We recommend installing mixKIN inside a virtual environment to avoid dependency 
 ```bash
 conda create -n mixkin_env python=3.10
 conda activate mixkin_env
+git clone https://github.com/mskilic/mixKIN.git
+cd mixKIN
+pip install .
+```
+
+### Using standard Virtualenv
+
+```bash
 git clone https://github.com/YourUsername/mixKIN.git
 cd mixKIN
+python -m venv mixkin_env
+source mixkin_env/bin/activate  # On Windows use `mixkin_env\Scripts\activate`
 pip install .
 ```
 
@@ -32,14 +42,12 @@ mixkin --help
 
 **Genotype Dataset**: Supported formats are PLINK (`.bed`, `.bim`, `.fam`) and EIGENSTRAT (`.geno`, `.snp`, `.ind`). The program will auto-detect the format based on the prefix.
 
-**Ancestry Proportions (Optional but recommended)**: A Q-matrix file containing admixture proportions. The first column must contain individual IDs, and subsequent columns represent source populations.
-
-**Source Frequencies (Optional)**: A tabular file with an `ID` column (SNP IDs) and columns for each source population containing allele frequencies. If omitted, frequencies are estimated internally from the input dataset.
+**Ancestry Proportions**: A Q-matrix file containing admixture proportions. This file is required for analyzing admixed individuals. The first column must contain individual IDs, and subsequent columns represent source populations.
 
 ## Usage Examples
 
 ### Internal Frequencies (Default)
-When your dataset contains both the query individuals and the source populations, mixKIN estimates the source-population allele frequencies internally.
+By default, mixKIN estimates the source-population allele frequencies internally from the input dataset. Use this approach when your dataset contains both the query individuals and the source populations.
 
 ```bash
 mixkin \
@@ -49,7 +57,7 @@ mixkin \
 ```
 
 ### External Frequencies
-When providing a pre-computed external allele frequency table for the source populations.
+You can bypass internal estimation by providing a pre-computed external allele frequency table. This must be a tabular file with an `ID` column (SNP IDs) followed by columns for each source population containing their allele frequencies.
 
 ```bash
 mixkin \
