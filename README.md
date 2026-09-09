@@ -1,156 +1,113 @@
 # mixKIN
 
-**mixKIN** is a powerful Python package for admixture-aware kinship estimation using PMR (Pairwise Mismatch Rate) normalization. It accurately estimates kinship coefficients and infers relatedness degrees in admixed populations by taking into account ancestry proportions and source population allele frequencies.
+mixKIN is a Python package for admixture-aware kinship estimation using PMR (Pairwise Mismatch Rate) normalization. It estimates kinship coefficients and infers relatedness degrees in admixed populations by utilizing ancestry proportions and source population allele frequencies.
 
----
+## Table of Contents
+- [Installation](#installation)
+- [Data Requirements](#data-requirements)
+- [Usage Examples](#usage-examples)
+- [Parameters](#parameters)
+- [Understanding the Output](#understanding-the-output)
+- [Citation](#citation)
 
-## 📖 Table of Contents
-1. [Installation](#installation)
-2. [Data Requirements](#data-requirements)
-3. [Tutorial: How to Run mixKIN](#tutorial-how-to-run-mixkin)
-   - [Mode 1: `whole` (Internal Frequencies)](#mode-1-whole-internal-frequencies)
-   - [Mode 2: `target` (External Frequencies)](#mode-2-target-external-frequencies)
-4. [Advanced Configuration](#advanced-configuration)
-5. [Understanding the Output](#understanding-the-output)
+## Installation
 
----
+We recommend installing mixKIN inside a virtual environment to avoid dependency conflicts.
 
-## 🛠️ Installation
-
-We highly recommend installing `mixKIN` inside a virtual environment (e.g., using `conda` or `venv`) to avoid dependency conflicts.
-
-### Option 1: Using Conda (Recommended)
-
-1. Create and activate a new conda environment:
-   ```bash
-   conda create -n mixkin_env python=3.10
-   conda activate mixkin_env
-   ```
-2. Clone the GitHub repository and install:
-   ```bash
-   git clone https://github.com/YourUsername/mixKIN.git
-   cd mixKIN
-   pip install .
-   ```
-
-### Option 2: Using standard Pip / Virtualenv
-
+### Using Conda
 ```bash
+conda create -n mixkin_env python=3.10
+conda activate mixkin_env
 git clone https://github.com/YourUsername/mixKIN.git
 cd mixKIN
-python -m venv mixkin_env
-source mixkin_env/bin/activate  # On Windows use `mixkin_env\Scripts\activate`
 pip install .
 ```
 
-You can verify the installation by running the command in your terminal. You should see the welcome banner and the help menu:
+Verify the installation:
 ```bash
 mixkin --help
 ```
 
----
+## Data Requirements
 
-## 📁 Data Requirements
+**Genotype Dataset**: Supported formats are PLINK (`.bed`, `.bim`, `.fam`) and EIGENSTRAT (`.geno`, `.snp`, `.ind`). The program will auto-detect the format based on the prefix.
 
-To run `mixKIN`, you will need:
-- **Genotype Dataset**: Supported formats are **PLINK** (`.bed`, `.bim`, `.fam`) and **EIGENSTRAT** (`.geno`, `.snp`, `.ind`).
-- **Ancestry Proportions (`--q-file`)**: A file containing the admixture proportions for each target individual. The file must have an `ID` column and subsequent columns for each source population (e.g., values summing to 1.0 per individual).
+**Ancestry Proportions (Optional but recommended)**: A Q-matrix file containing admixture proportions. The first column must contain individual IDs, and subsequent columns represent source populations.
 
-Optional:
-- **Target IDs File (`--target-ids`)**: A simple text file with one individual ID per line, specifying which individuals to calculate kinship for.
-- **Source Frequencies (`--source-freq-file`)**: Required only if calculating frequencies externally (see Mode 2).
-- **Source Metadata (`--source-meta`)**: A CSV/TSV containing `population`, `size`, and optionally `ploidy` (`diploid` or `pseudohaploid`) for source populations.
+**Source Frequencies (Optional)**: A tabular file with an `ID` column (SNP IDs) and columns for each source population containing allele frequencies. If omitted, frequencies are estimated internally from the input dataset.
 
----
+## Usage Examples
 
-## 🚀 Tutorial: How to Run mixKIN
+### Internal Frequencies (Default)
+When your dataset contains both the query individuals and the source populations, mixKIN estimates the source-population allele frequencies internally.
 
-`mixKIN` operates in two primary modes: `whole` and `target`.
-
-### Mode 1: `whole` (Internal Frequencies)
-Use `whole` mode when your dataset contains **both** your target individuals and the source populations. `mixKIN` will internally estimate the source-population allele frequencies from the dataset.
-
-**Example Command:**
 ```bash
 mixkin \
-  --input-mode whole \
-  --dataset-type eigenstrat \
-  --prefix /path/to/whole_dataset \
-  --source-pops PopA,PopB,PopC \
-  --q-file /path/to/ancestry_q.tsv \
-  --target-pop TARGET_POP \
-  --out kinship_results.tsv
+  -i /path/to/dataset_prefix \
+  -q /path/to/ancestry_q.tsv \
+  -o kinship_results.tsv
 ```
 
-**Parameters Explained:**
-- `--input-mode whole`: Tells mixKIN to calculate allele frequencies internally.
-- `--dataset-type eigenstrat`: The format of your genotype data (`eigenstrat` or `plink`).
-- `--prefix`: The base path to your dataset (without file extensions).
-- `--source-pops`: A comma-separated list of the source population names present in your dataset.
-- `--q-file`: The ancestry proportions file.
-- `--target-pop`: Calculate kinship for all individuals belonging to this population in the dataset. Alternatively, use `--target-ids target_list.txt` to specify a list of IDs.
-- `--out`: The name of the output TSV file.
+### External Frequencies
+When providing a pre-computed external allele frequency table for the source populations.
 
----
-
-### Mode 2: `target` (External Frequencies)
-Use `target` mode when your dataset contains **only** the target individuals, and you want to provide a pre-computed allele frequency table for the source populations.
-
-**Example Command:**
 ```bash
 mixkin \
-  --input-mode target \
-  --dataset-type plink \
-  --prefix /path/to/target_dataset \
-  --source-freq-file /path/to/source_freqs.tsv \
-  --source-meta /path/to/source_meta.tsv \
-  --q-file /path/to/ancestry_q.tsv \
-  --target-ids /path/to/target_ids.txt \
-  --out kinship_results.tsv
+  -i /path/to/dataset_prefix \
+  -q /path/to/ancestry_q.tsv \
+  -p /path/to/source_freqs.tsv \
+  -n 50,45,60 \
+  -g 0.98,0.95,0.99 \
+  -o kinship_results.tsv
 ```
 
-**Parameters Explained:**
-- `--input-mode target`: Tells mixKIN to use the external frequency table.
-- `--source-freq-file`: A tabular file with an `ID` column (SNP IDs) and columns for each source population containing allele frequencies.
-- `--source-meta`: **Required** when using an external frequency table. A file containing `population`, `size`, and `ploidy` for the sources.
-- `--target-ids`: A text file containing the IDs of individuals to test.
+### Homogeneous Populations (No Q-file)
+If you are analyzing a homogeneous population, you can omit the Q-file and specify the target population directly.
 
-> **Note:** In `target` mode, `--source-pops` can optionally be omitted, as mixKIN can infer the source populations automatically from the header of the `--source-freq-file`.
+```bash
+mixkin \
+  -i /path/to/dataset_prefix \
+  -t TargetPop \
+  -s SourcePop \
+  -o kinship_results.tsv
+```
 
----
+## Parameters
 
-## ⚙️ Advanced Configuration
+### Core Arguments
+- `-i`, `--input`: Genotype file prefix (required).
+- `-q`, `--ancestry-prop`: Q-matrix file containing admixture proportions.
+- `-t`, `--target-pop`: Target population label (required if `-q` is omitted).
+- `-s`, `--source-pop`: Source population label (defaults to `-t` if omitted).
+- `-p`, `--source-freq`: External source frequency file.
+- `-o`, `--out`: Output file name (default: `mixkin.out`).
 
-- **Source Metadata (`--source-meta`)**: 
-  You can fine-tune source population sample sizes and ploidy. The file should have columns: `population`, `size`, `ploidy`. If not provided (in `whole` mode), mixKIN uses sizes inferred from the dataset and defaults to the ploidy specified by `--default-source-ploidy`.
-  
-- **Ploidy Default (`--default-source-ploidy`)**:
-  Defaults to `pseudohaploid`. You can set this to `diploid` to treat all source populations as diploid globally without a meta file.
+### Advanced Configurations
+- `-n`, `--nind`: Comma-separated list of the number of individuals for each source population. Required when `-p` is used.
+- `-g`, `--geno-rate`: Comma-separated list of the average genotyping rates for each source population. Required when `-p` is used.
+- `-e`, `--epmr`: EPMR calculation override. Valid only if `-q` is omitted or contains a single source population.
+  - `median`: Uses the median PMR of all pairs within the source population.
+  - *Float value* (e.g., `0.22`): Bypasses calculations and uses this exact numeric value.
+- `-y`, `--ploidy`: Numeric ploidy values (default: 1). Accepts a single value (e.g., `2`) or a comma-separated sequence mapping to each source population.
+- `-v`, `--overlap`: Calculate EPMR using strictly the overlapping (non-missing) SNPs between each specific pair of individuals.
 
-- **EPMR Mode (`--epmr-mode`)**:
-  - `overlap` (Default): Calculates Expected PMR (EPMR) using only SNPs that overlap (are non-missing) between the target pair.
-  - `all`: Calculates EPMR using all available SNPs from the sources.
+## Understanding the Output
 
----
-
-## 📊 Understanding the Output
-
-mixKIN generates a tab-separated (TSV) output file with the following columns:
+The output is a tab-separated (TSV) file with the following columns:
 
 | Column | Description |
-| :--- | :--- |
-| **`ID1`, `ID2`** | The pair of individuals being compared. |
-| **`Theta`** | The estimated kinship coefficient. |
-| **`PMR`** | Pairwise Mismatch Rate observed between the two individuals. |
-| **`EPMR`** | Expected Pairwise Mismatch Rate given their ancestry proportions and source frequencies. |
-| **`OverlappingSNPs`** | Number of shared non-missing SNPs used for the calculation. |
-| **`Relationship`** | Inferred relatedness degree (`Unrelated`, `Third`, `Second`, `First`, `MZT` (Monozygotic Twins / Identical)). |
+|---|---|
+| `ID1`, `ID2` | The pair of individuals being compared |
+| `Theta` | The estimated kinship coefficient |
+| `PMR` | Pairwise Mismatch Rate observed between the two individuals |
+| `EPMR` | Expected Pairwise Mismatch Rate given ancestry proportions and frequencies |
+| `OverlappingSNPs` | Number of shared non-missing SNPs used for the calculation |
+| `Relationship` | Inferred relatedness degree (`Unrelated`, `Third`, `Second`, `First`, `MZT`) |
 
----
-## 📜 Citation
+## Citation
 
-If you use `mixKIN` in your research, please cite our paper:
+If you use mixKIN in your research, please cite our paper:
 
-> **[Insert Paper Title Here]**
-> Muhammed Siddik Kilic et al. (Year)
+> **[Insert Paper Title Here]**  
+> Muhammed Siddik Kilic et al. (Year)  
 > [Link to the paper](https://doi.org/10...)

@@ -11,7 +11,6 @@ from .io import (
     read_id_file,
     read_q_file,
     read_source_freq_file,
-    read_source_meta,
 )
 from .model import estimate_source_freqs, run_kinship
 
@@ -19,52 +18,41 @@ from .model import estimate_source_freqs, run_kinship
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MixKin: admixture-aware kinship estimation")
 
-    parser.add_argument("--input-mode", choices=["whole", "target"], required=True)
-    parser.add_argument("--dataset-type", choices=["plink", "eigenstrat"], required=True)
-    parser.add_argument("--prefix", required=True, help="Dataset prefix")
-    parser.add_argument("--source-pops", help="Comma-separated source population IDs")
-    parser.add_argument("--q-file", required=True, help="Ancestry proportions file (ID + source population columns)")
-    parser.add_argument("--target-ids", help="File with target IDs (one per line)")
-    parser.add_argument("--target-pop", help="Population label in .ind/.fam to use as targets")
+    parser.add_argument("-i", "--input", required=True, help="Input file prefix")
+    parser.add_argument("-q", "--ancestry-prop", required=False, help="Ancestry proportions file (Q-matrix)")
+    parser.add_argument("-t", "--target-pop", help="Target population label (required if -q is omitted)")
+    parser.add_argument("-s", "--source-pop", help="Source population label (defaults to target-pop if -q is omitted)")
+    parser.add_argument("-e", "--epmr", help="EPMR calculation override ('median' or float). Only valid if -q is omitted or Q-file has one source population.")
+    parser.add_argument("-p", "--source-freq", help="Source frequency file")
+    parser.add_argument("-o", "--out", default="mixkin.out", help="Output file name")
+    parser.add_argument("-y", "--ploidy", default="1", help="Ploidy values (1, 2, or comma-separated sequence)")
+    parser.add_argument("-v", "--overlap", action="store_true", help="Calculate EPMR using only overlapping SNPs")
 
-    parser.add_argument("--source-freq-file", help="Source frequencies table (required for --input-mode target)")
-
-    parser.add_argument("--source-meta", help="CSV/TSV with columns: population,size,ploidy")
-    parser.add_argument("--default-source-size", type=float, default=20.0)
-    parser.add_argument("--default-source-ploidy", choices=["pseudohaploid", "diploid"], default="pseudohaploid")
-    parser.add_argument("--epmr-mode", choices=["overlap", "all"], default="overlap", help="Calculate EPMR using only overlapping SNPs between targets or all available source SNPs")
-    parser.add_argument("--out", default="mixkin_results.tsv")
+    parser.add_argument("-n", "--nind", help="Number of individuals for each source population (comma-separated)")
+    parser.add_argument("-g", "--geno-rate", help="Average genotyping rate for each source population (comma-separated)")
+    
     return parser.parse_args()
 
 
-def _resolve_target_ids(all_ids: list[str], populations: list[str], target_ids_file: str | None, target_pop: str | None) -> list[str]:
-    ids_from_file = read_id_file(target_ids_file)
-    if ids_from_file:
-        valid = [sid for sid in ids_from_file if sid in set(all_ids)]
-        missing = sorted(set(ids_from_file) - set(valid))
-        if missing:
-            sys.exit(f"Error: Target IDs not found in dataset: {', '.join(missing)}")
-        return valid
-
-    if target_pop:
-        if target_pop not in populations:
-            sys.exit(f"Error: Target population '{target_pop}' not found in the dataset.")
-        return [sid for sid, pop in zip(all_ids, populations) if pop == target_pop]
-
-    return list(all_ids)
-
+def _detect_dataset_type(prefix: str) -> str:
+    base = Path(prefix)
+    has_plink = base.with_suffix(".bed").is_file() and base.with_suffix(".bim").is_file() and base.with_suffix(".fam").is_file()
+    has_eigenstrat = base.with_suffix(".geno").is_file() and base.with_suffix(".snp").is_file() and base.with_suffix(".ind").is_file()
+    
+    if has_plink and has_eigenstrat:
+        print("Both PLINK and Eigenstrat formats detected. Proceeding with PLINK.")
+        return "plink"
+    elif has_plink:
+        return "plink"
+    elif has_eigenstrat:
+        return "eigenstrat"
+    else:
+        sys.exit(f"Error: Could not find valid PLINK or Eigenstrat files for prefix '{prefix}'")
 
 def check_file_exists(filepath: str | None, name: str):
     if filepath is not None:
         if not Path(filepath).is_file():
             sys.exit(f"Error: {name} file '{filepath}' does not exist.")
-
-def check_prefix_exists(prefix: str, dataset_type: str):
-    base = Path(prefix)
-    exts = [".ind", ".snp", ".geno"] if dataset_type == "eigenstrat" else [".bed", ".bim", ".fam"]
-    for ext in exts:
-        if not base.with_suffix(ext).is_file():
-            sys.exit(f"Error: Dataset file '{base.with_suffix(ext)}' does not exist.")
 
 def print_banner():
     banner = """
@@ -78,49 +66,96 @@ def main() -> int:
     print_banner()
     args = parse_args()
     
-    check_prefix_exists(args.prefix, args.dataset_type)
-    check_file_exists(args.q_file, "--q-file")
-    check_file_exists(args.target_ids, "--target-ids")
-    check_file_exists(args.source_freq_file, "--source-freq-file")
-    check_file_exists(args.source_meta, "--source-meta")
+    dataset_type = _detect_dataset_type(args.input)
+    ds = read_dataset(args.input, dataset_type)
+    
+    check_file_exists(args.source_freq, "--source-freq")
+    external_freq = bool(args.source_freq)
 
-    if args.input_mode == "target" and args.source_freq_file and not args.source_meta:
-        sys.exit("Error: --source-meta parameter is required when providing an external allele frequency table (--source-freq-file).")
-
-    if args.source_pops:
-        source_pops = [v.strip() for v in args.source_pops.split(",") if v.strip()]
-    elif args.input_mode == "target" and args.source_freq_file:
-        df_cols = pd.read_csv(args.source_freq_file, sep=None, engine="python", nrows=0).columns.tolist()
-        source_pops = [c for i, c in enumerate(df_cols) if i > 0 and c != "ID"]
+    if args.ancestry_prop:
+        check_file_exists(args.ancestry_prop, "--ancestry-prop")
+        q_df, source_pops = read_q_file(args.ancestry_prop)
+        query_ids_from_q = q_df["ID"].tolist()
     else:
-        raise ValueError("--source-pops is required unless --input-mode target and --source-freq-file are provided.")
+        if not args.target_pop:
+            sys.exit("Error: -t/--target-pop is required when -q/--ancestry-prop is omitted.")
+        query_ids_from_q = [sid for sid, pop in zip(ds.sample_ids, ds.populations) if pop == args.target_pop]
+        if not query_ids_from_q:
+            sys.exit(f"Error: No individuals found for target population '{args.target_pop}'")
+        
+        source_pop = args.source_pop if args.source_pop else args.target_pop
+        source_pops = [source_pop]
+        q_df = pd.DataFrame({"ID": query_ids_from_q, source_pop: 1.0})
 
-    source_meta = read_source_meta(args.source_meta)
+    if args.epmr and (args.ancestry_prop and len(source_pops) > 1):
+        sys.exit("Error: -e/--epmr can only be used when -q is omitted or Q-file contains exactly one source population.")
 
-    ds = read_dataset(args.prefix, args.dataset_type)
-    target_ids = _resolve_target_ids(
-        all_ids=ds.sample_ids,
-        populations=ds.populations,
-        target_ids_file=args.target_ids,
-        target_pop=args.target_pop,
-    )
+    ploidy_arg = args.ploidy.strip()
+    ploidy_map = {}
+    if ploidy_arg == "1":
+        for p in source_pops: ploidy_map[p] = "pseudohaploid"
+    elif ploidy_arg == "2":
+        for p in source_pops: ploidy_map[p] = "diploid"
+    else:
+        parts = [p.strip() for p in ploidy_arg.split(",")]
+        if len(parts) != len(source_pops):
+            sys.exit(f"Error: Number of ploidy values ({len(parts)}) does not match number of source populations ({len(source_pops)}).")
+        for pop, p_val in zip(source_pops, parts):
+            if p_val == "1":
+                ploidy_map[pop] = "pseudohaploid"
+            elif p_val == "2":
+                ploidy_map[pop] = "diploid"
+            else:
+                sys.exit(f"Error: Invalid ploidy value '{p_val}'. Must be 1 or 2.")
 
-    if not target_ids:
-        raise ValueError("No target individuals found in dataset")
-    if len(target_ids) < 2:
-        raise ValueError("At least two target individuals are required")
+    manual_source_sizes = {}
+    if args.nind or args.geno_rate:
+        if not (args.nind and args.geno_rate):
+            sys.exit("Error: Both -n/--nind and -g/--geno-rate must be provided together.")
+        
+        nind_parts = [p.strip() for p in args.nind.split(",")]
+        geno_parts = [p.strip() for p in args.geno_rate.split(",")]
+        if len(nind_parts) != len(source_pops):
+            sys.exit(f"Error: Number of --nind values ({len(nind_parts)}) does not match source populations ({len(source_pops)}).")
+        if len(geno_parts) != len(source_pops):
+            sys.exit(f"Error: Number of --geno-rate values ({len(geno_parts)}) does not match source populations ({len(source_pops)}).")
+        for pop, n_str, g_str in zip(source_pops, nind_parts, geno_parts):
+            manual_source_sizes[pop] = float(n_str) * float(g_str)
+    elif external_freq:
+        sys.exit("Error: -n/--nind and -g/--geno-rate are required when using an external frequency file.")
 
-    target_idx = [ds.sample_ids.index(x) for x in target_ids]
+    fixed_epmr = None
+    if args.epmr:
+        if args.epmr.lower() == "median":
+            source_idx = [i for i, pop in enumerate(ds.populations) if pop == source_pops[0]]
+            if len(source_idx) < 2:
+                sys.exit(f"Error: Source population '{source_pops[0]}' has fewer than 2 individuals. Cannot compute median EPMR.")
+            from .model import compute_median_pmr
+            fixed_epmr = compute_median_pmr(ds.genotypes, source_idx)
+        else:
+            try:
+                fixed_epmr = float(args.epmr)
+            except ValueError:
+                sys.exit("Error: -e/--epmr must be 'median' or a numeric float value.")
 
-    q_df = read_q_file(args.q_file, source_pops)
+    query_ids_from_q = q_df["ID"].tolist()
+    ds_sample_ids_set = set(ds.sample_ids)
+    query_ids = [sid for sid in query_ids_from_q if sid in ds_sample_ids_set]
+    missing_query_ids = sorted(set(query_ids_from_q) - ds_sample_ids_set)
+    if missing_query_ids:
+        print(f"Warning: The following individuals from Q-file were not found in the dataset: {', '.join(missing_query_ids)}")
 
-    if args.input_mode == "whole":
+    if not query_ids:
+        raise ValueError("No individuals found in dataset to analyze")
+    if len(query_ids) < 2:
+        raise ValueError("At least two individuals are required to calculate kinship")
+
+    query_idx = [ds.sample_ids.index(x) for x in query_ids]
+
+    if not external_freq:
         missing_pops = [p for p in source_pops if p not in ds.populations]
         if missing_pops:
             sys.exit(f"Error: Source populations not found in the dataset: {', '.join(missing_pops)}")
-
-        if not args.target_pop and not args.target_ids:
-            raise ValueError("--target-pop or --target-ids is required for --input-mode whole to identify target individuals")
 
         source_freqs, source_sizes, source_callrates = estimate_source_freqs(
             genotypes=ds.genotypes,
@@ -129,35 +164,35 @@ def main() -> int:
             source_pops=source_pops,
         )
 
-        # In whole mode, SNPs naturally align. Ensure source_freqs aligns.
+        if manual_source_sizes:
+            print("Warning: -n/--nind and -g/--geno-rate were provided but will be ignored. Since allele frequencies are estimated internally from the dataset, sizes are automatically estimated as well.")
+
         src = pd.DataFrame({"ID": ds.snp_ids}).join(source_freqs)
         source_freqs = src[source_pops]
 
     else:
-        if not args.source_freq_file:
-            raise ValueError("--source-freq-file is required for --input-mode target")
-
-        source_freq_df = read_source_freq_file(args.source_freq_file, source_pops)
+        source_freq_df = read_source_freq_file(args.source_freq, source_pops)
         source_freqs = pd.DataFrame({"ID": ds.snp_ids}).merge(source_freq_df, on="ID", how="left")
         source_freqs = source_freqs[source_pops]
-        source_sizes = {}
+        source_sizes = manual_source_sizes
         source_callrates = {}
+        
+    epmr_mode = "overlap" if args.overlap else "all"
 
     results = run_kinship(
-        target_ids=target_ids,
+        query_ids=query_ids,
         sample_ids=ds.sample_ids,
-        target_genotypes=ds.genotypes,
-        target_sample_indices=target_idx,
-        target_snp_ids=ds.snp_ids,
+        query_genotypes=ds.genotypes,
+        query_sample_indices=query_idx,
+        query_snp_ids=ds.snp_ids,
         source_freqs=source_freqs,
         source_pops=source_pops,
         q_df=q_df,
-        source_meta=source_meta,
         source_sizes=source_sizes,
+        source_ploidies=ploidy_map,
         source_callrates=source_callrates,
-        default_source_size=args.default_source_size,
-        default_source_ploidy=args.default_source_ploidy,
-        epmr_mode=args.epmr_mode,
+        epmr_mode=epmr_mode,
+        fixed_epmr=fixed_epmr,
     )
 
     out_path = Path(args.out)

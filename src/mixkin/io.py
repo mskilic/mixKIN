@@ -91,17 +91,16 @@ def read_id_file(path: Optional[str]) -> Optional[List[str]]:
     return [v for v in values if v]
 
 
-def read_q_file(path: str, source_pops: List[str]) -> pd.DataFrame:
+def read_q_file(path: str) -> tuple[pd.DataFrame, list[str]]:
     q = pd.read_csv(path, sep=None, engine="python")
-    if "ID" not in q.columns:
-        rename = {q.columns[0]: "ID"}
-        q = q.rename(columns=rename)
+    
+    col_names = list(q.columns)
+    id_col = col_names[0]
+    rename = {id_col: "ID"}
+    q = q.rename(columns=rename)
+    
+    source_pops = list(q.columns)[1:]
 
-    missing = [p for p in source_pops if p not in q.columns]
-    if missing:
-        raise ValueError(f"Q file is missing ancestry columns for source populations: {', '.join(missing)}")
-
-    q = q[["ID", *source_pops]].copy()
     q["ID"] = q["ID"].astype(str)
     for pop in source_pops:
         q[pop] = pd.to_numeric(q[pop], errors="coerce").fillna(0.0).clip(0.0, 1.0)
@@ -109,7 +108,7 @@ def read_q_file(path: str, source_pops: List[str]) -> pd.DataFrame:
     total = q[source_pops].sum(axis=1)
     valid = total > 0
     q.loc[valid, source_pops] = q.loc[valid, source_pops].div(total[valid], axis=0)
-    return q
+    return q, source_pops
 
 
 def read_source_freq_file(path: str, source_pops: List[str]) -> pd.DataFrame:
@@ -129,18 +128,3 @@ def read_source_freq_file(path: str, source_pops: List[str]) -> pd.DataFrame:
     return out
 
 
-def read_source_meta(path: Optional[str]) -> Dict[str, Dict[str, object]]:
-    if not path:
-        return {}
-    df = pd.read_csv(path, sep=None, engine="python")
-    required = {"population", "size"}
-    if not required.issubset(df.columns):
-        raise ValueError("source-meta must include columns: population,size and optional ploidy")
-
-    meta: Dict[str, Dict[str, object]] = {}
-    for _, row in df.iterrows():
-        pop = str(row["population"])
-        ploidy = str(row.get("ploidy", "pseudohaploid")).lower()
-        size = float(row["size"])
-        meta[pop] = {"size": size, "ploidy": ploidy}
-    return meta
