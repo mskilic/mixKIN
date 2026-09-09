@@ -26,7 +26,7 @@ pip install .
 ### Using standard Virtualenv
 
 ```bash
-git clone https://github.com/YourUsername/mixKIN.git
+git clone https://github.com/mskilic/mixKIN.git
 cd mixKIN
 python -m venv mixkin_env
 source mixkin_env/bin/activate  # On Windows use `mixkin_env\Scripts\activate`
