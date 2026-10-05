@@ -35,9 +35,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def _detect_dataset_type(prefix: str) -> str:
-    base = Path(prefix)
-    has_plink = base.with_suffix(".bed").is_file() and base.with_suffix(".bim").is_file() and base.with_suffix(".fam").is_file()
-    has_eigenstrat = base.with_suffix(".geno").is_file() and base.with_suffix(".snp").is_file() and base.with_suffix(".ind").is_file()
+    has_plink = Path(f"{prefix}.bed").is_file() and Path(f"{prefix}.bim").is_file() and Path(f"{prefix}.fam").is_file()
+    has_eigenstrat = Path(f"{prefix}.geno").is_file() and Path(f"{prefix}.snp").is_file() and Path(f"{prefix}.ind").is_file()
     
     if has_plink and has_eigenstrat:
         print("Both PLINK and Eigenstrat formats detected. Proceeding with PLINK.")

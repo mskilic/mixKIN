@@ -17,10 +17,9 @@ class DatasetData:
 
 
 def _read_eigenstrat(prefix: str) -> DatasetData:
-    base = Path(prefix)
-    ind_path = base.with_suffix(".ind")
-    snp_path = base.with_suffix(".snp")
-    geno_path = base.with_suffix(".geno")
+    ind_path = Path(f"{prefix}.ind")
+    snp_path = Path(f"{prefix}.snp")
+    geno_path = Path(f"{prefix}.geno")
 
     ind_df = pd.read_csv(ind_path, sep=r"\s+", header=None, names=["id", "sex", "pop"])
     snp_df = pd.read_csv(
@@ -56,10 +55,9 @@ def _read_eigenstrat(prefix: str) -> DatasetData:
 def _read_plink(prefix: str) -> DatasetData:
     from pandas_plink import read_plink1_bin
 
-    base = Path(prefix)
-    bed = base.with_suffix(".bed")
-    bim = base.with_suffix(".bim")
-    fam = base.with_suffix(".fam")
+    bed = Path(f"{prefix}.bed")
+    bim = Path(f"{prefix}.bim")
+    fam = Path(f"{prefix}.fam")
 
     xr = read_plink1_bin(str(bed), str(bim), str(fam), verbose=False)
     # Ensure variants are the first dimension
