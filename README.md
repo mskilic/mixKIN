@@ -1,4 +1,5 @@
-# mixKIN
+![logo](mixKIN.png)
+
 
 mixKIN is a Python package for admixture-aware kinship estimation using PMR (Pairwise Mismatch Rate) normalization. It estimates kinship coefficients and infers relatedness degrees in admixed populations by utilizing ancestry proportions and source population allele frequencies.
 
