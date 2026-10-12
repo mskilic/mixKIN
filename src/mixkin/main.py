@@ -56,8 +56,7 @@ def check_file_exists(filepath: str | None, name: str):
 def print_banner():
     banner = """
 ======================================================================
-  mixKIN version 1.0.0
-  Developed by Muhammed Siddik Kilic
+mixKIN (v.1.0.0)
 ======================================================================"""
     print(banner, flush=True)
 
@@ -196,5 +195,5 @@ def main() -> int:
 
     out_path = Path(args.out)
     results.to_csv(out_path, sep="\t", index=False)
-    print(f"MixKin finished. Wrote {len(results)} pairs to {out_path}")
+    print(f"mixKIN finished. Wrote {len(results)} pairs to {out_path}")
     return 0

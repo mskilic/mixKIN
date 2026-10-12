@@ -1,7 +1,6 @@
 ![logo](mixKIN.png)
 
-
-mixKIN is a Python package for admixture-aware kinship estimation using PMR (Pairwise Mismatch Rate) normalization. It estimates kinship coefficients and infers relatedness degrees in admixed populations by utilizing ancestry proportions and source population allele frequencies.
+mixKIN is a Python package for ancestry-aware kinship estimation from low-coverage genomes. By calculating pair-specific Pairwise Mismatch Ratio (PMR) baselines based on individual ancestry proportions and source allele frequencies, mixKIN improves relatedness inference across admixed, heterogeneous, and homogeneous populations.
 
 ## Table of Contents
 - [Installation](#installation)
@@ -41,7 +40,7 @@ mixkin --help
 
 ## Data Requirements
 
-**Genotype Dataset**: Supported formats are PLINK (`.bed`, `.bim`, `.fam`) and EIGENSTRAT (`.geno`, `.snp`, `.ind`). The program will auto-detect the format based on the prefix.
+**Genotype Dataset**: Supported formats are PLINK (`.bed`, `.bim`, `.fam`) and unpacked EIGENSTRAT (`.geno`, `.snp`, `.ind`). The program will auto-detect the format based on the prefix.
 
 **Ancestry Proportions**: A Q-matrix file containing admixture proportions. This file is required for analyzing admixed individuals. The first column must contain individual IDs, and subsequent columns represent source populations.
 
@@ -117,6 +116,6 @@ The output is a tab-separated (TSV) file with the following columns:
 
 If you use mixKIN in your research, please cite our paper:
 
-> **[Insert Paper Title Here]**  
-> Muhammed Siddik Kilic et al. (Year)  
-> [Link to the paper](https://doi.org/10...)
+> **mixKIN: An ancestry-aware kinship estimation method for low coverage genomes**  
+> Kılıç, M. S., Malaspinas, A.-S, Koptekin, D.
+> 
