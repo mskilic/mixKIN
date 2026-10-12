@@ -100,12 +100,24 @@ def read_q_file(path: str) -> tuple[pd.DataFrame, list[str]]:
     source_pops = list(q.columns)[1:]
 
     q["ID"] = q["ID"].astype(str)
-    for pop in source_pops:
-        q[pop] = pd.to_numeric(q[pop], errors="coerce").fillna(0.0).clip(0.0, 1.0)
+    raw_vals = q[source_pops].apply(pd.to_numeric, errors="coerce").fillna(0.0)
 
-    total = q[source_pops].sum(axis=1)
-    valid = total > 0
-    q.loc[valid, source_pops] = q.loc[valid, source_pops].div(total[valid], axis=0)
+    out_of_bounds = (raw_vals < 0.0) | (raw_vals > 1.0)
+    if out_of_bounds.any().any():
+        num_oob = int(out_of_bounds.any(axis=1).sum())
+        print(f"Warning: Found {num_oob} individual(s) with ancestry proportions outside [0, 1]. Values have been clipped to [0, 1].")
+
+    clipped_vals = raw_vals.clip(0.0, 1.0)
+    totals = clipped_vals.sum(axis=1)
+
+    not_sum_one = ~np.isclose(totals, 1.0, atol=1e-3)
+    if not_sum_one.any():
+        num_not_one = int(not_sum_one.sum())
+        print(f"Warning: Found {num_not_one} individual(s) whose ancestry proportions do not sum to 1. Proportions have been normalized to sum to 1.")
+
+    valid = totals > 0
+    clipped_vals.loc[valid] = clipped_vals.loc[valid].div(totals[valid], axis=0)
+    q[source_pops] = clipped_vals
     return q, source_pops
 
 
