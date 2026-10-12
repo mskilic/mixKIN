@@ -81,7 +81,7 @@ rs_example_1	0.20	0.60
 rs_example_2	0.70	0.40
 ```
 
-Frequencies must refer to the same allele as the corresponding genotype encoding. Matching SNP IDs alone is not sufficient to establish allele orientation. Harmonize allele coding before analysis, and do not assume that mixKIN automatically resolves strand or allele swaps.
+For each SNP, make sure the external frequency refers to the allele counted in the genotype dataset. Matching SNP IDs is not enough: allele coding and strand orientation must also be consistent between the two inputs.
 
 When external frequencies are supplied, also provide source sample sizes (`-n`), mean genotype call rates (`-g`), and appropriate reference ploidy (`-y`).
 
