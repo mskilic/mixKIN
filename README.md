@@ -1,6 +1,6 @@
 ![logo](mixKIN.png)
 
-mixKIN is a Python package for ancestry-aware kinship estimation from low-coverage genomes. By calculating pair-specific Pairwise Mismatch Ratio (PMR) baselines based on individual ancestry proportions and source allele frequencies, mixKIN improves relatedness inference across admixed, heterogeneous, and homogeneous populations.
+mixKIN is a Python package for ancestry-aware kinship estimation from low-coverage genomes. It estimates pair-specific expected Pairwise Mismatch Ratio (ePMR) using individual ancestry proportions and source-population allele frequencies. This approach improves kinship estimation in the admixed, heterogeneous, as well as homogeneous populations.
 
 ## Table of Contents
 - [Installation](#installation)
@@ -12,7 +12,7 @@ mixKIN is a Python package for ancestry-aware kinship estimation from low-covera
 
 ## Installation
 
-We recommend installing mixKIN inside a virtual environment to avoid dependency conflicts.
+We recommend using a dedicated Conda or Python virtual environment to keep mixKIN's dependencies separate to avoid dependency conflicts.
 
 ### Using Conda
 ```bash
@@ -23,7 +23,7 @@ cd mixKIN
 pip install .
 ```
 
-### Using standard Virtualenv
+### Using Python venv
 
 ```bash
 git clone https://github.com/mskilic/mixKIN.git
@@ -33,89 +33,175 @@ source mixkin_env/bin/activate  # On Windows use `mixkin_env\Scripts\activate`
 pip install .
 ```
 
-Verify the installation:
-```bash
-mixkin --help
-```
-
 ## Data Requirements
 
-**Genotype Dataset**: Supported formats are PLINK (`.bed`, `.bim`, `.fam`) and unpacked EIGENSTRAT (`.geno`, `.snp`, `.ind`). The program will auto-detect the format based on the prefix.
+### Genotype Dataset
 
-**Ancestry Proportions**: A Q-matrix file containing admixture proportions. This file is required for analyzing admixed individuals. The first column must contain individual IDs, and subsequent columns represent source populations.
+Supported formats are 
+
+- **PLINK binary** (`.bed`, `.bim`, `.fam`)
+- **Unpacked EIGENSTRAT** (`.geno`, `.snp`, `.ind`).
+
+Specify the input file prefix without an extension, mixKIN automatically identifies the files mathching that prefix.
+
+Individual IDs must match between the genotype dataset and ancestry-proportion file. Source-population labels must also match the labels used in the ancestry file and frequency table. 
+
+### Ancestry Proportions
+
+For ancestry-aware analysis, provide a Q-matrix file containing individual admixture proportions. The first column contains individual IDs, and subsequent columns corresponds to source populations.
+
+The following example illustrates a two-source model:
+
+```text
+ID        JPT   TSI
+sample_1  0.50  0.50
+sample_2  0.75  0.25
+sample_3  1.00  0.00
+```
+
+Ancestry proportions should lie between 0 and 1 ans sum to 1 for each individual. Source columns should have consistent names across input files.
+
+For a single homogeneous population, the Q-file can be omitted by specifying target and source population labels, as shown below. 
+
+### Source reference and ploidy
+
+Source allele frequencies can be calculated internally from reference individuals/populations in the genotype dataset or provided in an external table.
+
+Specify reference ploidy using `-y`: use `1` for pseudohaploid references and `2` for diploid references. Reference sample size, call rate, and ploidy determine the mean observed allele count used in the finite-sample correction.
+
+**The default reference ploidy is 1. Set `-y 2` when using diploid source references.**
+
+### External allele frequencies
+
+The external frequency table contains an `ID` column of SNP IDs followed by one frequency column per source population. For example:
+
+```text
+ID	JPT	TSI
+rs_example_1	0.20	0.60
+rs_example_2	0.70	0.40
+```
+
+Frequencies must refer to the same allele as the corresponding genotype encoding. Matching SNP IDs alone is not sufficient to establish allele orientation. Harmonize allele coding before analysis, and do not assume that mixKIN automatically resolves strand or allele swaps.
+
+When external frequencies are supplied, also provide source sample sizes (`-n`), mean genotype call rates (`-g`), and appropriate reference ploidy (`-y`).
 
 ## Usage Examples
 
-### Internal Frequencies (Default)
-By default, mixKIN estimates the source-population allele frequencies internally from the input dataset. Use this approach when your dataset contains both the query individuals and the source populations.
+### Internal frequencies
+
+By default, mixKIN estimates source allele frequencies internally. Use this approach when the input dataset includes target individuals and the required source references.
+
+For pseudohaploid source references:
 
 ```bash
 mixkin \
   -i /path/to/dataset_prefix \
   -q /path/to/ancestry_q.tsv \
+  -y 1 \
   -o kinship_results.tsv
 ```
 
-### External Frequencies
-You can bypass internal estimation by providing a pre-computed external allele frequency table. This must be a tabular file with an `ID` column (SNP IDs) followed by columns for each source population containing their allele frequencies.
+For diploid source references, replace `-y 1` with `-y 2`.
+
+### External frequencies
+
+Provide a precomputed source-frequency table to bypass internal frequency estimation. This example assumes frequency columns ordered as JPT and TSI, with 20 diploid reference individuals per source:
 
 ```bash
 mixkin \
   -i /path/to/dataset_prefix \
   -q /path/to/ancestry_q.tsv \
   -p /path/to/source_freqs.tsv \
-  -n 50,45,60 \
-  -g 0.98,0.95,0.99 \
+  -n 20,20 \
+  -g 0.98,0.95 \
+  -y 2 \
   -o kinship_results.tsv
 ```
 
-### Homogeneous Populations (No Q-file)
-If you are analyzing a homogeneous population, you can omit the Q-file and specify the target population directly.
+The sample sizes and call rates are illustrative; replace them with values for the references used to estimate your frequencies. Call rates are proportions between 0 and 1, not percentages.
+
+### Homogeneous population without a Q-file
+
+For a single homogeneous population, specify the target and source population labels:
 
 ```bash
 mixkin \
   -i /path/to/dataset_prefix \
   -t TargetPop \
   -s SourcePop \
+  -y 2 \
   -o kinship_results.tsv
 ```
 
+Here, `-y 2` assumes diploid source references. If `-s` is omitted, the source label defaults to the target label.
+
+### Pair-specific overlapping SNPs
+
+Use `-v` to calculate ePMR on SNPs called in both individuals in each pair:
+
+```bash
+mixkin \
+  -i /path/to/dataset_prefix \
+  -q /path/to/ancestry_q.tsv \
+  -y 2 \
+  -v \
+  -o kinship_results.tsv
+```
+
+
 ## Parameters
 
-### Core Arguments
-- `-i`, `--input`: Genotype file prefix (required).
-- `-q`, `--ancestry-prop`: Q-matrix file containing admixture proportions.
-- `-t`, `--target-pop`: Target population label (required if `-q` is omitted).
-- `-s`, `--source-pop`: Source population label (defaults to `-t` if omitted).
-- `-p`, `--source-freq`: External source frequency file.
-- `-o`, `--out`: Output file name (default: `mixkin.out`).
+### Core arguments
 
-### Advanced Configurations
-- `-n`, `--nind`: Comma-separated list of the number of individuals for each source population. Required when `-p` is used.
-- `-g`, `--geno-rate`: Comma-separated list of the average genotyping rates for each source population. Required when `-p` is used.
-- `-e`, `--epmr`: EPMR calculation override. Valid only if `-q` is omitted or contains a single source population.
-  - `median`: Uses the median PMR of all pairs within the source population.
-  - *Float value* (e.g., `0.22`): Bypasses calculations and uses this exact numeric value.
-- `-y`, `--ploidy`: Numeric ploidy values (default: 1). Accepts a single value (e.g., `2`) or a comma-separated sequence mapping to each source population.
-- `-v`, `--overlap`: Calculate EPMR using strictly the overlapping (non-missing) SNPs between each specific pair of individuals.
+| Argument                | Description                                             |
+| ----------------------- | ------------------------------------------------------- |
+| `-i`, `--input`         | Genotype file prefix; required.                         |
+| `-q`, `--ancestry-prop` | Q-matrix containing individual ancestry proportions.    |
+| `-t`, `--target-pop`    | Target population label; required when `-q` is omitted. |
+| `-s`, `--source-pop`    | Source population label; defaults to `-t` when omitted. |
+| `-p`, `--source-freq`   | External source allele-frequency table.                 |
+| `-o`, `--out`           | Output file name; default: `mixkin.out`.                |
+
+### Reference and baseline settings
+
+| Argument            | Description                                                                                              |
+| ------------------- | -------------------------------------------------------------------------------------------------------- |
+| `-n`, `--nind`      | Comma-separated reference individual counts for source populations; required with `-p`.                  |
+| `-g`, `--geno-rate` | Comma-separated mean genotype call rates for source populations; required with `-p`.                     |
+| `-y`, `--ploidy`    | Reference ploidy; default: `1`. Accepts a single value or a comma-separated list for source populations. |
+| `-v`, `--overlap`   | Calculate ePMR using SNPs called in both members of each pair.                                           |
+| `-e`, `--epmr`      | Alternative mismatch baseline; valid only when `-q` is omitted or contains one source population.        |
+
+For `-e`, supported inputs are:
+
+- **`median`:** use the median observed PMR across pairs within the source population.
+- **A numeric value**, such as `0.22`: use a fixed expected mismatch baseline.
+
+Median or fixed baselines do not provide the multi-source ancestry weighting used in the default ancestry-aware model.
 
 ## Understanding the Output
 
-The output is a tab-separated (TSV) file with the following columns:
+The output is a tab-separated file containing:
 
-| Column | Description |
-|---|---|
-| `ID1`, `ID2` | The pair of individuals being compared |
-| `Theta` | The estimated kinship coefficient |
-| `PMR` | Pairwise Mismatch Rate observed between the two individuals |
-| `EPMR` | Expected Pairwise Mismatch Rate given ancestry proportions and frequencies |
-| `OverlappingSNPs` | Number of shared non-missing SNPs used for the calculation |
-| `Relationship` | Inferred relatedness degree (`Unrelated`, `Third`, `Second`, `First`, `MZT`) |
+| Column            | Description                                                                               |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| `ID1`, `ID2`      | IDs of the two individuals being compared.                                                |
+| `Theta`           | Estimated kinship coefficient.                                                            |
+| `PMR`             | Observed pairwise mismatch ratio (oPMR).                                                  |
+| `EPMR`            | Expected mismatch ratio for an unrelated pair with the corresponding ancestry profiles.   |
+| `OverlappingSNPs` | Number of eligible SNPs called in both individuals.                                       |
+| `Relationship`    | Inferred category: `Unrelated`, `Third`, `Second`, `First`, or `MZT` (monozygotic twins). |
+
+Kinship is estimated by comparing observed and expected mismatch:
+
+\[
+\widehat{\theta}=1-\frac{\mathrm{oPMR}}{\mathrm{ePMR}}.
+\]
+
+For non-inbred pedigree relationships, expected kinship coefficients are 0.25 for first-degree, 0.125 for second-degree, and 0.0625 for third-degree relatives. These are expectations, not exact values for every pair.
 
 ## Citation
 
-If you use mixKIN in your research, please cite our paper:
+If you use mixKIN in your research, please cite the manuscript:
 
-> **mixKIN: An ancestry-aware kinship estimation method for low coverage genomes**  
-> Kılıç, M. S., Malaspinas, A.-S, Koptekin, D.
-> 
+> Kılıç, M. S., Malaspinas, A.-S., & Koptekin, D. **mixKIN: An ancestry-aware kinship estimation method for low-coverage genomes.**
