@@ -194,9 +194,9 @@ The output is a tab-separated file containing:
 
 Kinship is estimated by comparing observed and expected mismatch:
 
-\[
+$$
 \widehat{\theta}=1-\frac{\mathrm{oPMR}}{\mathrm{ePMR}}.
-\]
+$$
 
 For non-inbred pedigree relationships, expected kinship coefficients are 0.25 for first-degree, 0.125 for second-degree, and 0.0625 for third-degree relatives. These are expectations, not exact values for every pair.
 
