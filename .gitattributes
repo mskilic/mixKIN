@@ -1,0 +1,13 @@
+# Exclude examples from language statistics
+example/** linguist-documentation
+
+# Treat genomic and data matrix files as non-code / not detectable
+*.bed linguist-detectable=false
+*.bim linguist-detectable=false
+*.fam linguist-detectable=false
+*.geno linguist-detectable=false
+*.snp linguist-detectable=false
+*.ind linguist-detectable=false
+*.indiv linguist-detectable=false
+*.Q linguist-detectable=false
+*.P linguist-detectable=false
