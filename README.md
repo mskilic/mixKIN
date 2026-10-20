@@ -205,3 +205,4 @@ For non-inbred pedigree relationships, expected kinship coefficients are 0.25 fo
 If you use mixKIN in your research, please cite the manuscript:
 
 > Kılıç, M. S., Malaspinas, A.-S., & Koptekin, D. **mixKIN: An ancestry-aware kinship estimation method for low-coverage genomes.**
+> https://www.biorxiv.org/content/10.64898/2026.10.13.758828v1
