@@ -40,7 +40,7 @@ pip install .
 Supported formats are 
 
 - **PLINK binary** (`.bed`, `.bim`, `.fam`)
-- **Unpacked EIGENSTRAT** (`.geno`, `.snp`, `.ind`).
+- **EIGENSTRAT/ANCESTRYMAP** (text and binary; `.geno`, `.snp`, `.ind`).
 
 Specify the input file prefix without an extension, mixKIN automatically identifies the files mathching that prefix.
 
@@ -170,6 +170,9 @@ mixkin \
 | `-g`, `--geno-rate` | Comma-separated mean genotype call rates for source populations; required with `-p`.                     |
 | `-y`, `--ploidy`    | Reference ploidy; default: `1`. Accepts a single value or a comma-separated list for source populations. |
 | `-v`, `--overlap`   | Calculate ePMR using SNPs called in both members of each pair.                                           |
+| `-x`, `--no-se`     | Disable 10 Mb block jackknife standard error (`SE`) and interval relationship (`Relationship_CI`) calculation. |
+| `-a`, `--autosomes` | Number of autosomes to include by default (default: `22`, keeps `1`–`22` / `chr1`–`chr22`; e.g., set `-a 26` for sheep). |
+| `-c`, `--chr`       | Calculate kinship on specific chromosome(s) only (e.g., `-c X`, `-c 1`, `-c chr1`, or `-c chr1,chr2`).   |
 | `-e`, `--epmr`      | Alternative mismatch baseline; valid only when `-q` is omitted or contains one source population.        |
 
 For `-e`, supported inputs are:
@@ -190,7 +193,9 @@ The output is a tab-separated file containing:
 | `PMR`             | Observed pairwise mismatch ratio (oPMR).                                                  |
 | `EPMR`            | Expected mismatch ratio for an unrelated pair with the corresponding ancestry profiles.   |
 | `OverlappingSNPs` | Number of eligible SNPs called in both individuals.                                       |
-| `Relationship`    | Inferred category: `Unrelated`, `Third`, `Second`, `First`, or `MZT` (monozygotic twins). |
+| `Relationship`    | Point-estimate inferred category: `Unrelated`, `Third`, `Second`, `First`, or `MZT` (monozygotic twins). |
+| `SE`              | Standard error of `Theta` estimated via 10 Mb weighted block jackknife (omitted when `-x`/`--no-se` is used). |
+| `Relationship_CI` | Relationship range inferred from `Theta + 2*SE` and `Theta - 2*SE` (e.g., `First - Second`, or matching `Relationship` when narrow; omitted when `-x`/`--no-se` is used). |
 
 Kinship is estimated by comparing observed and expected mismatch:
 

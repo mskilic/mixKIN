@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from .io import (
+    filter_dataset_chromosomes,
     read_dataset,
     read_id_file,
     read_q_file,
@@ -27,6 +28,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-o", "--out", default="mixkin.out", help="Output file name")
     parser.add_argument("-y", "--ploidy", default="1", help="Ploidy values (1, 2, or comma-separated sequence)")
     parser.add_argument("-v", "--overlap", action="store_true", help="Calculate EPMR using only overlapping SNPs")
+    parser.add_argument("-x", "--no-se", action="store_true", help="Disable 10 Mb block jackknife SE and CI relationship calculation")
+    parser.add_argument("-a", "--autosomes", type=int, default=22, help="Number of autosomes to include by default (default: 22, keeps 1-22 / chr1-chr22)")
+    parser.add_argument("-c", "--chr", help="Calculate kinship on specific chromosome(s) only (e.g., 'X', '1', 'chr1', or 'chr1,chr2')")
 
     parser.add_argument("-n", "--nind", help="Number of individuals for each source population (comma-separated)")
     parser.add_argument("-g", "--geno-rate", help="Average genotyping rate for each source population (comma-separated)")
@@ -56,7 +60,7 @@ def check_file_exists(filepath: str | None, name: str):
 def print_banner():
     banner = """
 ======================================================================
-mixKIN (v.1.0.0)
+mixKIN (v.1.1.0)
 ======================================================================"""
     print(banner, flush=True)
 
@@ -66,6 +70,10 @@ def main() -> int:
     
     dataset_type = _detect_dataset_type(args.input)
     ds = read_dataset(args.input, dataset_type)
+    try:
+        ds = filter_dataset_chromosomes(ds, autosomes=args.autosomes, target_chr=args.chr)
+    except ValueError as exc:
+        sys.exit(f"Error: {exc}")
     
     check_file_exists(args.source_freq, "--source-freq")
     external_freq = bool(args.source_freq)
@@ -191,6 +199,9 @@ def main() -> int:
         source_callrates=source_callrates,
         epmr_mode=epmr_mode,
         fixed_epmr=fixed_epmr,
+        chromosomes=ds.chromosomes,
+        positions=ds.positions,
+        calc_se=not args.no_se,
     )
 
     out_path = Path(args.out)
